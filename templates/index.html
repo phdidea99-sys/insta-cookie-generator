@@ -28,6 +28,7 @@
             text-align: center;
             color: #333;
             margin-bottom: 20px;
+            font-size: 28px;
         }
         .warning {
             background: #fff3cd;
@@ -39,7 +40,8 @@
             font-size: 14px;
         }
         .example {
-            background: #f3f4f6;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
             padding: 15px;
             border-radius: 10px;
             margin-bottom: 20px;
@@ -54,10 +56,15 @@
             font-family: monospace;
             font-size: 14px;
             margin-bottom: 20px;
+            resize: vertical;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
         }
         button {
             width: 100%;
-            padding: 15px;
+            padding: 16px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
@@ -66,14 +73,20 @@
             font-weight: 600;
             cursor: pointer;
             margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
         }
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
         }
         .progress-container {
             margin-top: 20px;
             display: none;
+            width: 100%;
         }
         .progress-bar {
             width: 100%;
@@ -81,32 +94,48 @@
             background: #f0f0f0;
             border-radius: 10px;
             overflow: hidden;
+            margin-bottom: 10px;
         }
         .progress-fill {
             height: 100%;
             background: linear-gradient(90deg, #4CAF50, #45a049);
             width: 0%;
             transition: width 0.3s;
+            border-radius: 10px;
         }
         .status {
             text-align: center;
-            margin-top: 10px;
+            margin: 10px 0;
             color: #666;
+            font-size: 14px;
         }
         .download-btn {
             background: #4CAF50;
             display: none;
+            margin-top: 20px;
+        }
+        .download-btn:hover {
+            background: #45a049;
         }
         .footer {
             text-align: center;
             color: #999;
             font-size: 12px;
-            margin-top: 20px;
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
         }
         code {
             background: #f1f1f1;
             padding: 2px 5px;
             border-radius: 3px;
+            font-family: monospace;
+        }
+        .error-message {
+            color: #dc3545;
+            text-align: center;
+            margin: 10px 0;
+            font-size: 14px;
         }
     </style>
 </head>
@@ -115,17 +144,18 @@
         <h1>🍪 Instagram Cookie Generator</h1>
         
         <div class="warning">
-            <strong>⚠️ সতর্কতা:</strong> শুধু টেস্ট একাউন্ট ব্যবহার করুন। আসল একাউন্ট ব্লক হতে পারে।
+            <strong>⚠️ সতর্কতা:</strong> 
+            শুধু টেস্ট একাউন্ট ব্যবহার করুন। আসল একাউন্ট ব্লক হওয়ার ঝুঁকি আছে।
         </div>
         
         <div class="example">
-            <strong>📝 ইনপুট ফরম্যাট:</strong><br>
+            <strong>📝 ইনপুট ফরম্যাট (প্রতি লাইনে):</strong><br>
             <code>username|password</code><br><br>
             <strong>উদাহরণ:</strong><br>
-            <code>testuser1|pass123<br>testuser2|pass456</code>
+            <code>testuser1|pass123<br>testuser2|pass456<br>testuser3|pass789</code>
         </div>
         
-        <textarea id="inputData" placeholder="user1|pass1&#10;user2|pass2"></textarea>
+        <textarea id="inputData" placeholder="user1|pass1&#10;user2|pass2&#10;user3|pass3"></textarea>
         
         <button id="submitBtn" onclick="generateCookies()">🚀 কুকি জেনারেট করুন</button>
         
@@ -133,13 +163,14 @@
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
-            <div class="status" id="status"></div>
+            <div class="status" id="statusText">প্রসেসিং শুরু হচ্ছে...</div>
+            <div class="error-message" id="errorText"></div>
         </div>
         
         <button class="download-btn" id="downloadBtn">📥 ফাইল ডাউনলোড করুন</button>
         
         <div class="footer">
-            ⚡ ফোন ভার্সন ১.০ | Render.com
+            ⚡ ফোন ভার্সন ২.০ | Render.com
         </div>
     </div>
 
@@ -155,11 +186,14 @@
             // প্রোগ্রেস বার দেখান
             document.getElementById('progressContainer').style.display = 'block';
             document.getElementById('progressFill').style.width = '0%';
-            document.getElementById('status').innerText = 'প্রসেসিং শুরু হচ্ছে...';
+            document.getElementById('statusText').innerText = 'প্রসেসিং শুরু হচ্ছে...';
+            document.getElementById('errorText').innerText = '';
             
             // বাটন ডিজেবল করুন
             document.getElementById('submitBtn').disabled = true;
             document.getElementById('downloadBtn').style.display = 'none';
+            
+            console.log('Sending data to server...');
             
             // API কল
             fetch('/api/submit', {
@@ -172,54 +206,72 @@
                 })
             })
             .then(response => {
+                console.log('Response status:', response.status);
                 if (!response.ok) {
-                    throw new Error('Network response was not ok');
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 return response.json();
             })
             .then(data => {
+                console.log('Response data:', data);
+                
                 if (data.error) {
-                    alert('Error: ' + data.error);
+                    document.getElementById('errorText').innerText = 'Error: ' + data.error;
+                    document.getElementById('statusText').innerText = '❌ ব্যর্থ';
                     document.getElementById('submitBtn').disabled = false;
-                    document.getElementById('progressContainer').style.display = 'none';
                     return;
                 }
-                // স্ট্যাটাস চেক করা শুরু
-                checkStatus(data.job_id);
+                
+                if (data.job_id) {
+                    console.log('Job ID:', data.job_id);
+                    // স্ট্যাটাস চেক করা শুরু
+                    checkStatus(data.job_id);
+                } else {
+                    throw new Error('No job ID received');
+                }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('কানেকশন error: ' + error.message);
+                console.error('Fetch error:', error);
+                document.getElementById('errorText').innerText = 'কানেকশন error: ' + error.message;
+                document.getElementById('statusText').innerText = '❌ error';
                 document.getElementById('submitBtn').disabled = false;
-                document.getElementById('progressContainer').style.display = 'none';
             });
         }
         
         function checkStatus(jobId) {
+            console.log('Checking status for job:', jobId);
+            
             const interval = setInterval(() => {
                 fetch(`/api/status/${jobId}`)
                     .then(response => {
                         if (!response.ok) {
-                            throw new Error('Status check failed');
+                            throw new Error(`Status check failed: ${response.status}`);
                         }
                         return response.json();
                     })
                     .then(data => {
+                        console.log('Status data:', data);
+                        
                         if (data.error) {
                             clearInterval(interval);
-                            alert('Error: ' + data.error);
+                            document.getElementById('errorText').innerText = 'Error: ' + data.error;
+                            document.getElementById('statusText').innerText = '❌ ব্যর্থ';
                             document.getElementById('submitBtn').disabled = false;
-                            document.getElementById('progressContainer').style.display = 'none';
                             return;
                         }
                         
-                        document.getElementById('progressFill').style.width = data.progress + '%';
-                        document.getElementById('status').innerText = `প্রসেসিং... ${data.progress}%`;
+                        // প্রোগ্রেস আপডেট
+                        if (data.progress !== undefined) {
+                            document.getElementById('progressFill').style.width = data.progress + '%';
+                            document.getElementById('statusText').innerText = `প্রসেসিং... ${data.progress}%`;
+                        }
                         
+                        // স্ট্যাটাস চেক
                         if (data.status === 'completed') {
                             clearInterval(interval);
                             document.getElementById('submitBtn').disabled = false;
-                            document.getElementById('status').innerText = '✅ সম্পন্ন!';
+                            document.getElementById('statusText').innerText = '✅ সম্পন্ন!';
+                            document.getElementById('progressFill').style.width = '100%';
                             
                             // ডাউনলোড বাটন দেখান
                             const downloadBtn = document.getElementById('downloadBtn');
@@ -232,15 +284,14 @@
                         if (data.status === 'error') {
                             clearInterval(interval);
                             document.getElementById('submitBtn').disabled = false;
-                            document.getElementById('status').innerText = '❌ error হয়েছে';
-                            alert('প্রসেসিং error: ' + (data.error || 'অজানা error'));
+                            document.getElementById('statusText').innerText = '❌ error হয়েছে';
+                            document.getElementById('errorText').innerText = data.error || 'অজানা error';
                         }
                     })
                     .catch(error => {
                         console.error('Status check error:', error);
-                        clearInterval(interval);
-                        document.getElementById('submitBtn').disabled = false;
-                        document.getElementById('status').innerText = '❌ error';
+                        // error হলে interval বন্ধ না করে চালিয়ে যান
+                        document.getElementById('errorText').innerText = 'স্ট্যাটাস চেক error: ' + error.message;
                     });
             }, 2000);
         }
