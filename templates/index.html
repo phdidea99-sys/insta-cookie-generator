@@ -1,56 +1,249 @@
-function generateCookies() {
-    const inputData = document.getElementById('inputData').value;
-    
-    if (!inputData.trim()) {
-        alert('❌ প্লিজ কিছু ডাটা লিখুন!');
-        return;
-    }
-    
-    // বাটন ডিজেবল করুন
-    document.getElementById('submitBtn').disabled = true;
-    document.getElementById('status').innerText = 'প্রসেসিং শুরু হচ্ছে...';
-    
-    // API কল
-    fetch('/api/submit', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({credentials: inputData})
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert('Error: ' + data.error);
-            return;
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insta Cookie Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .example {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .status {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+        }
+        .download-btn {
+            background: #4CAF50;
+            display: none;
+        }
+        .footer {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+        code {
+            background: #f1f1f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍪 Instagram Cookie Generator</h1>
+        
+        <div class="warning">
+            <strong>⚠️ সতর্কতা:</strong> শুধু টেস্ট একাউন্ট ব্যবহার করুন। আসল একাউন্ট ব্লক হতে পারে।
+        </div>
+        
+        <div class="example">
+            <strong>📝 ইনপুট ফরম্যাট:</strong><br>
+            <code>username|password</code><br><br>
+            <strong>উদাহরণ:</strong><br>
+            <code>testuser1|pass123<br>testuser2|pass456</code>
+        </div>
+        
+        <textarea id="inputData" placeholder="user1|pass1&#10;user2|pass2"></textarea>
+        
+        <button id="submitBtn" onclick="generateCookies()">🚀 কুকি জেনারেট করুন</button>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="status" id="status"></div>
+        </div>
+        
+        <button class="download-btn" id="downloadBtn">📥 ফাইল ডাউনলোড করুন</button>
+        
+        <div class="footer">
+            ⚡ ফোন ভার্সন ১.০ | Render.com
+        </div>
+    </div>
+
+    <script>
+        function generateCookies() {
+            const inputData = document.getElementById('inputData').value;
+            
+            if (!inputData.trim()) {
+                alert('❌ প্লিজ কিছু ডাটা লিখুন!');
+                return;
+            }
+            
+            // প্রোগ্রেস বার দেখান
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('status').innerText = 'প্রসেসিং শুরু হচ্ছে...';
+            
+            // বাটন ডিজেবল করুন
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('downloadBtn').style.display = 'none';
+            
+            // API কল
+            fetch('/api/submit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    credentials: inputData
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    document.getElementById('submitBtn').disabled = false;
+                    document.getElementById('progressContainer').style.display = 'none';
+                    return;
+                }
+                // স্ট্যাটাস চেক করা শুরু
+                checkStatus(data.job_id);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('কানেকশন error: ' + error.message);
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('progressContainer').style.display = 'none';
+            });
         }
         
-        // স্ট্যাটাস চেক করা শুরু
-        checkStatus(data.job_id);
-    })
-    .catch(error => {
-        alert('Error: ' + error);
-        document.getElementById('submitBtn').disabled = false;
-    });
-}
-
-function checkStatus(jobId) {
-    const interval = setInterval(() => {
-        fetch(`/api/status/${jobId}`)
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('progress').style.width = data.progress + '%';
-                document.getElementById('status').innerText = `প্রসেসিং... ${data.progress}%`;
-                
-                if (data.status === 'completed') {
-                    clearInterval(interval);
-                    document.getElementById('submitBtn').disabled = false;
-                    document.getElementById('status').innerText = 'সম্পন্ন!';
-                    
-                    // ডাউনলোড বাটন দেখান
-                    document.getElementById('downloadBtn').style.display = 'block';
-                    document.getElementById('downloadBtn').onclick = () => {
-                        window.location.href = `/api/download/${jobId}`;
-                    };
-                }
-            });
-    }, 2000);
-}
+        function checkStatus(jobId) {
+            const interval = setInterval(() => {
+                fetch(`/api/status/${jobId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Status check failed');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.error) {
+                            clearInterval(interval);
+                            alert('Error: ' + data.error);
+                            document.getElementById('submitBtn').disabled = false;
+                            document.getElementById('progressContainer').style.display = 'none';
+                            return;
+                        }
+                        
+                        document.getElementById('progressFill').style.width = data.progress + '%';
+                        document.getElementById('status').innerText = `প্রসেসিং... ${data.progress}%`;
+                        
+                        if (data.status === 'completed') {
+                            clearInterval(interval);
+                            document.getElementById('submitBtn').disabled = false;
+                            document.getElementById('status').innerText = '✅ সম্পন্ন!';
+                            
+                            // ডাউনলোড বাটন দেখান
+                            const downloadBtn = document.getElementById('downloadBtn');
+                            downloadBtn.style.display = 'block';
+                            downloadBtn.onclick = function() {
+                                window.location.href = `/api/download/${jobId}`;
+                            };
+                        }
+                        
+                        if (data.status === 'error') {
+                            clearInterval(interval);
+                            document.getElementById('submitBtn').disabled = false;
+                            document.getElementById('status').innerText = '❌ error হয়েছে';
+                            alert('প্রসেসিং error: ' + (data.error || 'অজানা error'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Status check error:', error);
+                        clearInterval(interval);
+                        document.getElementById('submitBtn').disabled = false;
+                        document.getElementById('status').innerText = '❌ error';
+                    });
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
