@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Insta Cookie Generator Pro</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -24,18 +20,9 @@
             padding: 25px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 26px;
-        }
-        .subtitle {
-            text-align: center;
-            color: #666;
-            margin-bottom: 25px;
-            font-size: 14px;
-        }
+        h1 { text-align: center; color: #333; margin-bottom: 10px; font-size: 26px; }
+        .subtitle { text-align: center; color: #666; margin-bottom: 25px; font-size: 14px; }
+        
         .stats-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -54,16 +41,9 @@
         .stat-challenge { border-color: #17a2b8; }
         .stat-bad { border-color: #dc3545; }
         .stat-error { border-color: #6c757d; }
+        .stat-number { font-size: 24px; font-weight: bold; margin: 5px 0; }
+        .stat-label { font-size: 12px; color: #666; }
         
-        .stat-number {
-            font-size: 24px;
-            font-weight: bold;
-            margin: 5px 0;
-        }
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-        }
         .input-section {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -75,14 +55,7 @@
             border-radius: 10px;
             padding: 15px;
         }
-        .input-group h3 {
-            font-size: 14px;
-            margin-bottom: 10px;
-            color: #333;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
+        .input-group h3 { font-size: 14px; margin-bottom: 10px; color: #333; }
         textarea {
             width: 100%;
             height: 200px;
@@ -92,11 +65,6 @@
             font-family: monospace;
             font-size: 13px;
             resize: vertical;
-            background: white;
-        }
-        textarea:focus {
-            outline: none;
-            border-color: #667eea;
         }
         .proxy-option {
             background: #e8f0fe;
@@ -104,14 +72,9 @@
             padding: 10px 15px;
             border-radius: 8px;
             margin-bottom: 15px;
-            font-size: 13px;
             display: flex;
             align-items: center;
             gap: 10px;
-        }
-        .proxy-option input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
         }
         .example {
             background: #f8f9fa;
@@ -120,12 +83,6 @@
             border-radius: 10px;
             margin-bottom: 15px;
             font-size: 13px;
-        }
-        .example code {
-            background: #e9ecef;
-            padding: 2px 5px;
-            border-radius: 4px;
-            font-size: 12px;
         }
         button {
             width: 100%;
@@ -139,10 +96,8 @@
             cursor: pointer;
             margin: 15px 0;
         }
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
         .progress-container {
             background: #f8f9fa;
             padding: 15px;
@@ -163,18 +118,12 @@
             width: 0%;
             transition: width 0.3s;
         }
-        .status-text {
-            text-align: center;
-            margin: 10px 0;
-            color: #666;
-        }
-        .download-section {
-            margin-top: 20px;
-            display: none;
-        }
+        .status-text { text-align: center; margin: 10px 0; color: #666; }
+        
+        .download-section { margin-top: 20px; display: none; }
         .download-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 10px;
             margin-top: 15px;
         }
@@ -185,7 +134,7 @@
             color: white;
             font-weight: 600;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
         }
         .btn-good { background: #28a745; }
         .btn-2fa { background: #ffc107; color: #333; }
@@ -193,35 +142,27 @@
         .btn-bad { background: #dc3545; }
         .btn-error { background: #6c757d; }
         .btn-all { background: #007bff; }
-        .info-text {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-        .warning {
-            background: #fff3cd;
-            border: 1px solid #ffeeba;
-            color: #856404;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 15px;
-            font-size: 13px;
+        .speed-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            display: inline-block;
+            margin-left: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🍪 Instagram Cookie Generator Pro</h1>
-        <div class="subtitle">প্রক্সি অপশন সহ ফাস্ট চেকিং সিস্টেম</div>
-        
-        <div class="warning">
-            <strong>⚠️ সতর্কতা:</strong> শুধু টেস্ট একাউন্ট ব্যবহার করুন। 
-            প্রক্সি দেওয়া ঐচ্ছিক - না দিলেও কাজ করবে।
-        </div>
+        <h1>⚡ Instagram Cookie Generator Pro 
+            <span class="speed-badge">ফাস্ট চেকিং</span>
+        </h1>
+        <div class="subtitle">প্যারালাল প্রসেসিং + EOF ফিক্স + ২০× ফাস্ট</div>
         
         <div class="proxy-option">
             <input type="checkbox" id="enableProxy" onchange="toggleProxy()">
-            <label for="enableProxy">🔒 প্রক্সি ব্যবহার করুন (ঐচ্ছিক)</label>
+            <label for="enableProxy">🌐 প্রক্সি ব্যবহার করুন (ঐচ্ছিক - স্পিড বুস্ট)</label>
         </div>
         
         <div class="input-section">
@@ -235,20 +176,21 @@ ramim77800|ramim@11</textarea>
             </div>
             
             <div class="input-group" id="proxySection" style="display: none;">
-                <h3>🌐 প্রক্সি লিস্ট (ঐচ্ছিক)</h3>
-                <textarea id="proxyData" placeholder="http://45.79.120.99:3128&#10;http://68.183.191.12:3128&#10;http://167.99.86.11:3128"></textarea>
+                <h3>🌐 প্রক্সি লিস্ট (ফাস্ট প্রক্সি দিলে স্পিড বাড়ে)</h3>
+                <textarea id="proxyData" placeholder="http://45.79.120.99:3128&#10;http://68.183.191.12:3128"></textarea>
                 <div class="info-text">প্রতি লাইনে একটি প্রক্সি। ফরম্যাট: http://ip:port</div>
             </div>
         </div>
         
         <div class="example">
-            <strong>📌 ইনপুট ফরম্যাট:</strong><br>
-            <code>username|password</code><br><br>
-            <strong>🌐 প্রক্সি ফরম্যাট (চাইলে):</strong><br>
-            <code>http://ip:port</code> অথবা <code>socks5://ip:port</code>
+            <strong>⚡ নোটিশ:</strong><br>
+            • ২০টি একাউন্ট প্যারালাল চেক হবে<br>
+            • EOF Error ফিক্স করা হয়েছে (retry system)<br>
+            • চ্যালেঞ্জ bypass করা সম্ভব না - সেগুলো আলাদা ফাইল<br>
+            • রেজাল্ট আসতে ৫-২০ সেকেন্ড লাগবে
         </div>
         
-        <button id="submitBtn" onclick="startProcessing()">🚀 শুরু করুন</button>
+        <button id="submitBtn" onclick="startProcessing()">🚀 ফাস্ট চেক শুরু করুন</button>
         
         <div class="stats-container" id="statsContainer" style="display: none;">
             <div class="stat-card stat-good">
@@ -283,12 +225,12 @@ ramim77800|ramim@11</textarea>
         <div class="download-section" id="downloadSection">
             <h3>📥 ডাউনলোড অপশন:</h3>
             <div class="download-grid">
-                <button class="download-btn btn-good" onclick="downloadFile('good')">✅ গুড একাউন্ট</button>
-                <button class="download-btn btn-2fa" onclick="downloadFile('2fa')">🔐 2FA একাউন্ট</button>
+                <button class="download-btn btn-good" onclick="downloadFile('good')">✅ গুড</button>
+                <button class="download-btn btn-2fa" onclick="downloadFile('2fa')">🔐 2FA</button>
                 <button class="download-btn btn-challenge" onclick="downloadFile('challenge')">⚠️ চ্যালেঞ্জ</button>
                 <button class="download-btn btn-bad" onclick="downloadFile('bad')">❌ ব‍্যাড</button>
                 <button class="download-btn btn-error" onclick="downloadFile('error')">❗ error</button>
-                <button class="download-btn btn-all" onclick="downloadAll()">📦 সব একসাথে</button>
+                <button class="download-btn btn-all" onclick="downloadFile('all')">📦 সব একসাথে</button>
             </div>
         </div>
     </div>
@@ -321,6 +263,8 @@ ramim77800|ramim@11</textarea>
             document.getElementById('statusText').innerText = 'প্রসেসিং শুরু হচ্ছে...';
             document.getElementById('submitBtn').disabled = true;
             
+            const startTime = Date.now();
+            
             fetch('/api/submit', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -336,11 +280,7 @@ ramim77800|ramim@11</textarea>
                     resetUI();
                     return;
                 }
-                
                 currentJobId = data.job_id;
-                if (data.proxy_count > 0) {
-                    document.getElementById('statusText').innerText = `প্রসেসিং শুরু... (${data.proxy_count} টি প্রক্সি ব্যবহার হবে)`;
-                }
                 checkStatus();
             })
             .catch(error => {
@@ -363,16 +303,8 @@ ramim77800|ramim@11</textarea>
                             return;
                         }
                         
-                        // প্রোগ্রেস আপডেট
                         document.getElementById('progressFill').style.width = data.progress + '%';
                         
-                        let statusText = `প্রসেসিং... ${data.progress}%`;
-                        if (data.proxy_count > 0) {
-                            statusText += ` (${data.proxy_count} টি প্রক্সি)`;
-                        }
-                        document.getElementById('statusText').innerText = statusText;
-                        
-                        // স্ট্যাটাস দেখান
                         if (data.details) {
                             document.getElementById('statsContainer').style.display = 'grid';
                             document.getElementById('statGood').innerText = data.details.good || 0;
@@ -380,32 +312,31 @@ ramim77800|ramim@11</textarea>
                             document.getElementById('statChallenge').innerText = data.details.challenge || 0;
                             document.getElementById('statBad').innerText = data.details.bad || 0;
                             document.getElementById('statError').innerText = data.details.error || 0;
+                            
+                            document.getElementById('statusText').innerText = 
+                                `✅ গুড: ${data.details.good} | 🔐 2FA: ${data.details['2fa']} | ⚠️ চ্যালেঞ্জ: ${data.details.challenge} | ❌ ব‍্যাড: ${data.details.bad} | ❗ error: ${data.details.error}`;
                         }
                         
-                        // সম্পন্ন হলে
                         if (data.status === 'completed') {
                             clearInterval(statusInterval);
                             document.getElementById('progressFill').style.width = '100%';
-                            document.getElementById('statusText').innerText = '✅ সম্পন্ন!';
                             document.getElementById('submitBtn').disabled = false;
                             document.getElementById('downloadSection').style.display = 'block';
+                            
+                            const endTime = Date.now();
+                            const timeTaken = ((endTime - startTime) / 1000).toFixed(1);
+                            document.getElementById('statusText').innerText += ` | সম্পন্ন! সময় লাগলো: ${timeTaken} সেকেন্ড`;
                         }
                     })
                     .catch(error => {
                         console.error('Status error:', error);
                     });
-            }, 2000);
+            }, 1000); // প্রতি ১ সেকেন্ডে আপডেট
         }
         
         function downloadFile(type) {
             if (currentJobId) {
                 window.location.href = `/api/download/${currentJobId}/${type}`;
-            }
-        }
-        
-        function downloadAll() {
-            if (currentJobId) {
-                window.location.href = `/api/download/all/${currentJobId}`;
             }
         }
         
