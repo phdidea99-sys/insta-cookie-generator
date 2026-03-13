@@ -4,5 +4,5 @@ gunicorn
 instagrapi
 aiohttp
 requests
-aiohttp-socks
 pysocks
+asyncio
